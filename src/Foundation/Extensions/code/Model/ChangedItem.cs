@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
+﻿using System.Collections.Generic;
 using Sitecore.Data;
 using Sitecore.Publishing.Service.Client.Http;
-using Sitecore.Publishing.Service.Data;
 
 namespace Sitecore.PublishingService.Foundation.Extensions.Model
 {
@@ -16,5 +12,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Model
         public ItemPath ItemPath { get; set; }
         public string Path { get; set; }
         public ManifestOperationResultType ItemOperationResultType { get; set; }
+        public ResultChangeType ResultChangeType { get; set; }
+        public IEnumerable<FieldResult> FieldChanges { get; set; }
     }
 }

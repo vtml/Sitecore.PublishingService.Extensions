@@ -115,7 +115,8 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                     ItemId = itemId,
                     ItemOperationResultType = itemResult.Type,
                     ItemPath = item.Paths,
-                    Path = item.Paths.FullPath
+                    Path = item.Paths.FullPath,
+                    FieldChanges = itemResult.Metadata.FieldChanges
                 };
 
                 return changedItem;
@@ -125,7 +126,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
         {
             var itemId = ID.Parse(itemResult.EntityId);
             var item = targetDatabase.GetItem(itemId);
-
+            
             if (item == null) return null;
             var changedItem = new ChangedItem
             {
@@ -134,7 +135,9 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                 ItemPath = item.Paths,
                 Path = item.Paths.FullPath,
                 Language = itemResult.Metadata.VarianceChanges[0].Item1,
-                Version = itemResult.Metadata.VarianceChanges[0].Item2
+                Version = itemResult.Metadata.VarianceChanges[0].Item2,
+                ResultChangeType = itemResult.Metadata.VarianceChanges[0].Item3,
+                FieldChanges = itemResult.Metadata.FieldChanges
             };
 
             return changedItem;
