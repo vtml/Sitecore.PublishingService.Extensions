@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading.Tasks;
 using Sitecore.Data;
 using Sitecore.Data.Archiving;
 using Sitecore.Framework.Conditions;
@@ -32,9 +33,14 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
         {
             if (args.TotalResultCount.Equals(0)) return;
 
+            Task.WaitAll(ProcessChangedItems(args));
+        }
+
+        public virtual async Task ProcessChangedItems(PublishEndResultBatchArgs args)
+        {
+            var changedItems = new List<ChangedItem>();
             var sourceDatabase = _databaseFactory.GetDatabase(args.JobData.SourceDatabaseName);
             var targetDatabase = _databaseFactory.GetDatabase(args.TargetInfo.TargetDatabaseName);
-            var changedItems = new List<ChangedItem>();
 
             foreach (var itemResult in args.Batch.ToList())
             {
@@ -54,7 +60,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
 
             if (changedItems.Count > 0)
             {
-                PublishChangedItemsRemoteEvent(targetDatabase, changedItems);
+                await PublishChangedItemsRemoteEvent(targetDatabase, changedItems);
             }
         }
 
@@ -111,7 +117,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
             return changedItem;
         }
 
-        public void PublishChangedItemsRemoteEvent(IDatabase targetDatabase, IEnumerable<ChangedItem> changedItems)
+        public virtual async Task PublishChangedItemsRemoteEvent(IDatabase targetDatabase, IEnumerable<ChangedItem> changedItems)
         {
 
         }
