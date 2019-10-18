@@ -67,36 +67,59 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
         public static ChangedItem ProcessDeletedItem(IDatabase sourceDatabase, ManifestOperationResult<ItemResult> itemResult)
         {
             var itemId = ID.Parse(itemResult.EntityId);
-            
-            var archive = ArchiveManager.GetArchive("archive", sourceDatabase.Database);
-            var archivalId = archive.GetArchivalId(itemId);
-            var archiveItem = archive.GetEntries(ID.Parse(archivalId)).Where(ent => ent.ItemId == itemId).OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
 
-            var recyclebin = ArchiveManager.GetArchive("recyclebin", sourceDatabase.Database);
-            var recyclebinId = recyclebin.GetArchivalId(itemId);
-            var recyclebinItem = recyclebin.GetEntries(ID.Parse(recyclebinId)).Where(ent => ent.ItemId == itemId).OrderByDescending(x => x.ArchiveDate).FirstOrDefault(); ;
+            // Try to retrieve straight as an item. If an item is found from the source database, it will most likely have something to do with Publishing Restrictions imposed to the item
+            var item = sourceDatabase.GetItem(itemId);
+            if (item == null)
+            {
 
-            if (archiveItem == null && recyclebinItem == null) return null;
-            ArchiveEntry archiveEntry;
-            if (archiveItem != null && recyclebinItem != null)
-            {
-                archiveEntry = archiveItem.ArchiveDate > recyclebinItem.ArchiveDate ? archiveItem : recyclebinItem;
-            }
-            else if (archiveItem != null)
-            {
-                archiveEntry = archiveItem;
+                // Try to retrieve from Archive
+                var archive = ArchiveManager.GetArchive("archive", sourceDatabase.Database);
+                var archivalId = archive.GetArchivalId(itemId);
+                var archiveItem = archive.GetEntries(ID.Parse(archivalId)).Where(ent => ent.ItemId == itemId)
+                    .OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
+
+                // Try to retrieve from Recycle Bin
+                var recyclebin = ArchiveManager.GetArchive("recyclebin", sourceDatabase.Database);
+                var recyclebinId = recyclebin.GetArchivalId(itemId);
+                var recyclebinItem = recyclebin.GetEntries(ID.Parse(recyclebinId)).Where(ent => ent.ItemId == itemId)
+                    .OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
+                ;
+
+                if (archiveItem == null && recyclebinItem == null) return null;
+                ArchiveEntry archiveEntry;
+                if (archiveItem != null && recyclebinItem != null)
+                {
+                    archiveEntry = archiveItem.ArchiveDate > recyclebinItem.ArchiveDate ? archiveItem : recyclebinItem;
+                }
+                else if (archiveItem != null)
+                {
+                    archiveEntry = archiveItem;
+                }
+                else
+                {
+                    archiveEntry = recyclebinItem;
+                }
+
+                var changedItem = new ChangedItem
+                {
+                    ItemId = itemId, ItemOperationResultType = itemResult.Type, Path = archiveEntry.OriginalLocation
+                };
+
+                return changedItem;
             }
             else
             {
-                archiveEntry = recyclebinItem;
+                var changedItem = new ChangedItem
+                {
+                    ItemId = itemId,
+                    ItemOperationResultType = itemResult.Type,
+                    ItemPath = item.Paths,
+                    Path = item.Paths.FullPath
+                };
+
+                return changedItem;
             }
-
-            var changedItem = new ChangedItem
-            {
-                ItemId = itemId, ItemOperationResultType = itemResult.Type, Path = archiveEntry.OriginalLocation
-            };
-
-            return changedItem;
         }
         public static ChangedItem ProcessChangedItem(IDatabase targetDatabase, ManifestOperationResult<ItemResult> itemResult)
         {
