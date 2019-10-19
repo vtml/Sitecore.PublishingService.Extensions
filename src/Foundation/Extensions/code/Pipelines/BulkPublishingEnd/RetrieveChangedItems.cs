@@ -72,33 +72,34 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
             var item = sourceDatabase.GetItem(itemId);
             if (item == null)
             {
-
-                // Try to retrieve from Archive
-                var archive = ArchiveManager.GetArchive("archive", sourceDatabase.Database);
-                var archivalId = archive.GetArchivalId(itemId);
-                var archiveItem = archive.GetEntries(ID.Parse(archivalId)).Where(ent => ent.ItemId == itemId)
-                    .OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
+                ArchiveEntry archiveEntry;
 
                 // Try to retrieve from Recycle Bin
                 var recyclebin = ArchiveManager.GetArchive("recyclebin", sourceDatabase.Database);
                 var recyclebinId = recyclebin.GetArchivalId(itemId);
                 var recyclebinItem = recyclebin.GetEntries(ID.Parse(recyclebinId)).Where(ent => ent.ItemId == itemId)
                     .OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
-                ;
 
-                if (archiveItem == null && recyclebinItem == null) return null;
-                ArchiveEntry archiveEntry;
-                if (archiveItem != null && recyclebinItem != null)
+                if (recyclebinItem != null)
                 {
-                    archiveEntry = archiveItem.ArchiveDate > recyclebinItem.ArchiveDate ? archiveItem : recyclebinItem;
-                }
-                else if (archiveItem != null)
-                {
-                    archiveEntry = archiveItem;
+                    archiveEntry = recyclebinItem;
                 }
                 else
                 {
-                    archiveEntry = recyclebinItem;
+                    // Try to retrieve from Archive
+                    var archive = ArchiveManager.GetArchive("archive", sourceDatabase.Database);
+                    var archivalId = archive.GetArchivalId(itemId);
+                    var archiveItem = archive.GetEntries(ID.Parse(archivalId)).Where(ent => ent.ItemId == itemId)
+                        .OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
+
+                    if (archiveItem != null)
+                    {
+                        archiveEntry = archiveItem;
+                    }
+                    else
+                    {
+                        return null;
+                    }
                 }
 
                 var changedItem = new ChangedItem
