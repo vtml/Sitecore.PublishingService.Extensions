@@ -33,6 +33,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
         {
             if (args.TotalResultCount.Equals(0)) return;
 
+            _publishingLog.Debug("Processing Published Items and Transforming into a list of ChangedItem");
             Task.WaitAll(ProcessChangedItems(args));
         }
 
@@ -60,11 +61,12 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
 
             if (changedItems.Count > 0)
             {
-                await PublishChangedItemsRemoteEvent(targetDatabase, changedItems);
+                // Insert specific things that you would like to do
+                // Examples: pass the changedItems to another custom pipeline, raise more events, or custom remote events with the changedItems as part of EventData
             }
         }
 
-        public static ChangedItem ProcessDeletedItem(IDatabase sourceDatabase, ManifestOperationResult<ItemResult> itemResult)
+        public ChangedItem ProcessDeletedItem(IDatabase sourceDatabase, ManifestOperationResult<ItemResult> itemResult)
         {
             var itemId = ID.Parse(itemResult.EntityId);
 
@@ -82,6 +84,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
 
                 if (recyclebinItem != null)
                 {
+                    _publishingLog.Debug(string.Format("Item {0} found in Recycle Bin", itemId));
                     archiveEntry = recyclebinItem;
                 }
                 else
@@ -94,6 +97,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
 
                     if (archiveItem != null)
                     {
+                        _publishingLog.Debug(string.Format("Item {0} found in Archive", itemId));
                         archiveEntry = archiveItem;
                     }
                     else
@@ -111,6 +115,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
             }
             else
             {
+                _publishingLog.Debug(string.Format("Item {0} found in source databbase {1}", itemId, sourceDatabase.Name));
                 var changedItem = new ChangedItem
                 {
                     ItemId = itemId,
@@ -123,7 +128,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                 return changedItem;
             }
         }
-        public static ChangedItem ProcessChangedItem(IDatabase targetDatabase, ManifestOperationResult<ItemResult> itemResult)
+        public ChangedItem ProcessChangedItem(IDatabase targetDatabase, ManifestOperationResult<ItemResult> itemResult)
         {
             var itemId = ID.Parse(itemResult.EntityId);
             var item = targetDatabase.GetItem(itemId);
@@ -141,12 +146,8 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                 FieldChanges = itemResult.Metadata.FieldChanges
             };
 
+            _publishingLog.Debug(string.Format("Item {0} found in target database {1}", itemId, targetDatabase.Name));
             return changedItem;
-        }
-
-        public virtual async Task PublishChangedItemsRemoteEvent(IDatabase targetDatabase, IEnumerable<ChangedItem> changedItems)
-        {
-
         }
     }
 }
