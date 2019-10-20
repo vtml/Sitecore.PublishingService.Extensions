@@ -4,6 +4,9 @@ using Sitecore.Publishing.Service.Client.Http;
 
 namespace Sitecore.PublishingService.Foundation.Extensions.Model
 {
+    /// <summary>
+    /// This is a flatten view of the items that were published.
+    /// </summary>
     public class ChangedItem
     {
         public string Language { get; set; }
