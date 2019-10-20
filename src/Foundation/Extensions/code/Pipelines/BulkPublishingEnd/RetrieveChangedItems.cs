@@ -1,15 +1,18 @@
-﻿using System.Collections.Generic;
+﻿using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Threading.Tasks;
 using Sitecore.Data;
 using Sitecore.Data.Archiving;
+using Sitecore.DependencyInjection;
 using Sitecore.Framework.Conditions;
+using Sitecore.Globalization;
 using Sitecore.Publishing.Service.Client.Http;
 using Sitecore.Publishing.Service.Client.Http.Manifest;
 using Sitecore.Publishing.Service.Pipelines.BulkPublishingEnd;
 using Sitecore.Publishing.Service.SitecoreAbstractions;
 using Sitecore.PublishingService.Foundation.Extensions.Model;
+using Sitecore.PublishingService.Foundation.Extensions.Model.Wrappers;
 
 namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublishingEnd
 {
@@ -17,46 +20,48 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
     {
         private readonly IPublishingLog _publishingLog;
         private readonly IDatabaseFactory _databaseFactory;
+        private readonly IArchiveManagerWrapper _archiveManagerWrapper;
 
         [ExcludeFromCodeCoverage]
-        public RetrieveChangedItems() : this(new PublishingLogWrapper(), new DatabaseFactoryWrapper(new PublishingLogWrapper())) {}
+        public RetrieveChangedItems() : this(new PublishingLogWrapper(), new DatabaseFactoryWrapper(new PublishingLogWrapper()), ServiceLocator.ServiceProvider.GetService<IArchiveManagerWrapper>()) {}
 
         [ExcludeFromCodeCoverage]
-        public RetrieveChangedItems(IPublishingLog publishingLog, IDatabaseFactory databaseFactory)
+        public RetrieveChangedItems(IPublishingLog publishingLog, IDatabaseFactory databaseFactory, IArchiveManagerWrapper archiveManagerWrapper)
         {
             Condition.Requires(publishingLog, nameof(publishingLog)).IsNotNull();
             Condition.Requires(databaseFactory, nameof(databaseFactory)).IsNotNull();
+            Condition.Requires(archiveManagerWrapper, nameof(archiveManagerWrapper)).IsNotNull();
             _publishingLog = publishingLog;
             _databaseFactory = databaseFactory;
+            _archiveManagerWrapper = archiveManagerWrapper;
         }
         public void Process(PublishEndResultBatchArgs args)
         {
             if (args.TotalResultCount.Equals(0)) return;
 
             _publishingLog.Debug("Processing Published Items and Transforming into a list of ChangedItem");
-            Task.WaitAll(ProcessChangedItems(args));
+            ProcessChangedItems(args);
         }
 
-        public virtual async Task ProcessChangedItems(PublishEndResultBatchArgs args)
+        public void ProcessChangedItems(PublishEndResultBatchArgs args)
         {
             var changedItems = new List<ChangedItem>();
             var sourceDatabase = _databaseFactory.GetDatabase(args.JobData.SourceDatabaseName);
-            var targetDatabase = _databaseFactory.GetDatabase(args.TargetInfo.TargetDatabaseName);
 
-            foreach (var itemResult in args.Batch.ToList())
+            // Process deleted items first
+            var itemResults = args.Batch.ToList();
+            var deletedResults = itemResults.Where(x => x.Type == ManifestOperationResultType.Deleted);
+            var createdModifiedResults = itemResults.Where(x => x.Type != ManifestOperationResultType.Deleted);
+            var deletedResultsList = deletedResults.ToList();
+            if (deletedResultsList.Any())
             {
-                ChangedItem changedItem;
-                // Item Deleted
-                if (itemResult.Type == ManifestOperationResultType.Deleted && itemResult.Metadata.VarianceChanges.Length.Equals(0))
-                {
-                    changedItem = ProcessDeletedItem(sourceDatabase, itemResult);
-                }
-                else
-                {
-                    changedItem = ProcessChangedItem(targetDatabase, itemResult);
-                }
-                if (changedItem != null)
-                    changedItems.Add(changedItem);
+                changedItems.AddRange(deletedResultsList.Select(deletedResult => ProcessDeletedItem(sourceDatabase, deletedResult)));
+            }
+
+            var createdModifiedResultsList = createdModifiedResults.ToList();
+            if (createdModifiedResultsList.Any())
+            {
+                changedItems.AddRange(createdModifiedResultsList.Select(itemResult => ProcessChangedItem(sourceDatabase, itemResult)).Where(changedItem => changedItem != null));
             }
 
             if (changedItems.Count > 0)
@@ -71,16 +76,13 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
             var itemId = ID.Parse(itemResult.EntityId);
 
             // Try to retrieve straight as an item. If an item is found from the source database, it will most likely have something to do with Publishing Restrictions imposed to the item
-            var item = sourceDatabase.GetItem(itemId);
+            var item = sourceDatabase.Database.GetItem(itemId);
             if (item == null)
             {
                 ArchiveEntry archiveEntry;
 
                 // Try to retrieve from Recycle Bin
-                var recyclebin = ArchiveManager.GetArchive("recyclebin", sourceDatabase.Database);
-                var recyclebinId = recyclebin.GetArchivalId(itemId);
-                var recyclebinItem = recyclebin.GetEntries(ID.Parse(recyclebinId)).Where(ent => ent.ItemId == itemId)
-                    .OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
+                var recyclebinItem = _archiveManagerWrapper.GetEntries("recyclebin", sourceDatabase.Database, itemId).FirstOrDefault(ent => ent.ItemId == itemId);
 
                 if (recyclebinItem != null)
                 {
@@ -90,11 +92,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                 else
                 {
                     // Try to retrieve from Archive
-                    var archive = ArchiveManager.GetArchive("archive", sourceDatabase.Database);
-                    var archivalId = archive.GetArchivalId(itemId);
-                    var archiveItem = archive.GetEntries(ID.Parse(archivalId)).Where(ent => ent.ItemId == itemId)
-                        .OrderByDescending(x => x.ArchiveDate).FirstOrDefault();
-
+                    var archiveItem = _archiveManagerWrapper.GetEntries("archive", sourceDatabase.Database, itemId).FirstOrDefault(ent => ent.ItemId == itemId);
                     if (archiveItem != null)
                     {
                         _publishingLog.Debug(string.Format("Item {0} found in Archive", itemId));
@@ -108,7 +106,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
 
                 var changedItem = new ChangedItem
                 {
-                    ItemId = itemId, ItemOperationResultType = itemResult.Type, Path = archiveEntry.OriginalLocation
+                    ItemId = itemId, ItemOperationResultType = itemResult.Type, Path = archiveEntry.OriginalLocation, ResultChangeType = ResultChangeType.Deleted
                 };
 
                 return changedItem;
@@ -128,10 +126,10 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                 return changedItem;
             }
         }
-        public ChangedItem ProcessChangedItem(IDatabase targetDatabase, ManifestOperationResult<ItemResult> itemResult)
+        public ChangedItem ProcessChangedItem(IDatabase sourceDatabase, ManifestOperationResult<ItemResult> itemResult)
         {
             var itemId = ID.Parse(itemResult.EntityId);
-            var item = targetDatabase.GetItem(itemId);
+            var item = sourceDatabase.Database.GetItem(itemId, Language.Parse(itemResult.Metadata.VarianceChanges[0].Item1), Version.Parse(itemResult.Metadata.VarianceChanges[0].Item2));
             
             if (item == null) return null;
             var changedItem = new ChangedItem
@@ -146,7 +144,7 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                 FieldChanges = itemResult.Metadata.FieldChanges
             };
 
-            _publishingLog.Debug(string.Format("Item {0} found in target database {1}", itemId, targetDatabase.Name));
+            _publishingLog.Debug(string.Format("Item {0} found in source database {1}", itemId, sourceDatabase.Name));
             return changedItem;
         }
     }
