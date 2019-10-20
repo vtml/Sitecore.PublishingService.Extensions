@@ -5,13 +5,25 @@ using Sitecore.Data.Archiving;
 
 namespace Sitecore.PublishingService.Foundation.Extensions.Model.Wrappers
 {
+    /// <summary>
+    /// This is a wrapper for ArchiveManager so that any implementation of this manager wrapper can be unit testable.
+    /// </summary>
     public interface IArchiveManagerWrapper
     {
+        /// <summary>
+        /// Getting an entry from either Recycle Bin or Archive
+        /// </summary>
+        /// <param name="archiveName">The name of the archive to retrieve. This should be either 'recyclebin' or 'archive'. TODO: make this an enum.</param>
+        /// <param name="database"><see cref="Database"/></param>
+        /// <param name="itemId">The original Item ID before it was archived</param>
+        /// <returns></returns>
         IEnumerable<ArchiveEntry> GetEntries(string archiveName, Database database, ID itemId);
     }
 
+    ///<inheritdoc cref="IArchiveManagerWrapper"/>
     public class ArchiveManagerWrapper : IArchiveManagerWrapper
     {
+        ///<inheritdoc cref="IArchiveManagerWrapper"/>
         [ExcludeFromCodeCoverage]
         public IEnumerable<ArchiveEntry> GetEntries(string archiveName, Database database, ID itemId)
         {
