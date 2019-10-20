@@ -16,6 +16,11 @@ using Sitecore.PublishingService.Foundation.Extensions.Model.Wrappers;
 
 namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublishingEnd
 {
+    /// <summary>
+    /// This pipeline processor runs in the BulkPublishingEnd pipeline from Sitecore Publishing Service.
+    /// The intention is to flatten, simplified what items were published.
+    /// Deleted / archived items also loses a lot of context. This processor will inject as much information back as possible.
+    /// </summary>
     public class RetrieveChangedItems
     {
         private readonly IPublishingLog _publishingLog;
@@ -43,6 +48,10 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
             ProcessChangedItems(args);
         }
 
+        /// <summary>
+        /// Processing all the published items.
+        /// </summary>
+        /// <param name="args"><see cref="PublishEndResultBatchArgs"/></param>
         public void ProcessChangedItems(PublishEndResultBatchArgs args)
         {
             var changedItems = new List<ChangedItem>();
@@ -71,6 +80,12 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
             }
         }
 
+        /// <summary>
+        /// Processes items or their versions that were deleted from the target database. There are 3 possible scenarios that items or versions are unpublished. Publishing Restrictions, Delete, Archive.
+        /// </summary>
+        /// <param name="sourceDatabase"><see cref="Database"/></param>
+        /// <param name="itemResult">A list of item results which indicates items or their version(s) were removed from the publishing target. <see cref="ManifestOperationResult"/></param>
+        /// <returns><see cref="ChangedItem"/></returns>
         public ChangedItem ProcessDeletedItem(IDatabase sourceDatabase, ManifestOperationResult<ItemResult> itemResult)
         {
             var itemId = ID.Parse(itemResult.EntityId);
@@ -126,6 +141,12 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Pipelines.BulkPublish
                 return changedItem;
             }
         }
+        /// <summary>
+        /// Processes items that were created and modified during publishing.
+        /// </summary>
+        /// <param name="sourceDatabase">This should be the 'master' database.<see cref="Database"/></param>
+        /// <param name="itemResult">A list of item results which indicates items or their version(s) were removed from the publishing target. <see cref="ManifestOperationResult"/></param>
+        /// <returns><see cref="ChangedItem"/></returns>
         public ChangedItem ProcessChangedItem(IDatabase sourceDatabase, ManifestOperationResult<ItemResult> itemResult)
         {
             var itemId = ID.Parse(itemResult.EntityId);
