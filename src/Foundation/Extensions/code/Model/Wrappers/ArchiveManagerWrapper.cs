@@ -14,8 +14,8 @@ namespace Sitecore.PublishingService.Foundation.Extensions.Model.Wrappers
         /// Getting an entry from either Recycle Bin or Archive
         /// </summary>
         /// <param name="archiveName">The name of the archive to retrieve. This should be either 'recyclebin' or 'archive'. TODO: make this an enum.</param>
-        /// <param name="database"><see cref="Database"/></param>
-        /// <param name="itemId">The original Item ID before it was archived</param>
+        /// <param name="database">The database where the Archive is stored. Usually 'master'. <see cref="Database"/></param>
+        /// <param name="itemId">The original Item ID before it was archived. <see cref="ID"/></param>
         /// <returns></returns>
         IEnumerable<ArchiveEntry> GetEntries(string archiveName, Database database, ID itemId);
     }
