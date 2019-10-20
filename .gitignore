@@ -328,3 +328,9 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
+
+# Ignore Yeoman Generator
+yo/**/*.*
+
+#Ignore Sitecore DLL References
+ref/*.dll
